@@ -15,6 +15,7 @@ type db struct {
 }
 
 var (
+	sqldriver = "sqlite3"
 	pwd, _ = os.Getwd()
 	dbName = path.Join(pwd, "db", "blog.db")
 )
@@ -22,6 +23,14 @@ var (
 var (
 	InsertPost = db{"insert post", "insert into post(title, summary, content, category_id) values(?, ?, ?, ?)"}
 	InsertCate = db{"insert category", "insert into category(name) values(?)"}
+	CreatePostTable = db{"create post table", "CREATE TABLE `post` (" +
+		"`id` INTEGER PRIMARY KEY AUTOINCREMENT, `create_time` TIMESTAMP default (datetime('now', 'localtime'))," +
+        "`update_time` TIMESTAMP default (datetime('now', 'localtime')), `title` VARCHAR(64) NOT NULL, " +
+		"`summary` VARCHAR(100) NULL, `content` TEXT NOT NULL, `category_id` INTEGER NOT NULL," +
+		"FOREIGN KEY (category_id) REFERENCES category(id));"}
+	CreateCateTable = db{"create category table", "CREATE TABLE `category` (`id` INTEGER PRIMARY KEY AUTOINCREMENT," +
+		"`create_time` TIMESTAMP default (datetime('now', 'localtime')), " +
+		"`update_time` TIMESTAMP default (datetime('now', 'localtime')), `name` VARCHAR(50) NOT NULL);"}
 )
 
 type DB interface {
@@ -31,8 +40,57 @@ type DB interface {
 	selectInfo() map[string]string
 }
 
+func CreateDB() error {
+	if _, err := os.Stat(dbName); err != nil {
+		err = createDBFile()
+		if err != nil {
+			log.Fatal(err)
+			return err
+		}
+		err = createTable()
+		checkErr(err)
+		// todo: 创建文件，而是创建表
+	} else {
+		err = createTable()
+		checkErr(err)
+		// todo: 不创建文件，再创建表
+	}
+	return nil
+}
+
+func createDBFile() error {
+	f, err := os.Create(dbName)
+	defer f.Close()
+	if err != nil {
+		log.Fatal(err)
+		return err
+	}
+	err = os.Chmod(dbName, 0644)
+	if err != nil {
+		log.Fatal(err)
+		return err
+	}
+	return nil
+}
+
+func createTable() error {
+	db, err := sql.Open(sqldriver, dbName)
+	defer db.Close()
+	checkErr(err)
+
+	res, err := db.Exec(CreateCateTable.basesql)
+	log.Println(res)
+	checkErr(err)
+
+	res, err = db.Exec(CreatePostTable.basesql)
+	log.Println(res)
+	checkErr(err)
+	return nil
+}
+
 func (d db) InsertOneInfo(data ...interface{}) {
-  db, err := sql.Open("sqlite3", dbName)
+  db, err := sql.Open(sqldriver, dbName)
+  defer db.Close()
   checkErr(err)
 
   stmt, err := db.Prepare(d.basesql)
@@ -44,8 +102,10 @@ func (d db) InsertOneInfo(data ...interface{}) {
 
 func (d db) InsertMoreInfo(data ...[]interface{}) {
 	db, err := sql.Open("sqlite3", dbName)
+	defer db.Close()
 	checkErr(err)
 	stmt, err := db.Prepare(d.basesql)
+	defer stmt.Close()
 	checkErr(err)
 	for _, d := range data {
 		_, err = stmt.Exec(d...)
@@ -61,6 +121,7 @@ func checkErr(err error) {
 }
 
 func InitDB() {
+	checkErr(CreateDB())
 	insertCateDB := InsertCate
 	insertCateDB.InsertOneInfo("Python")
 	insertCateDB.InsertOneInfo("Linux")

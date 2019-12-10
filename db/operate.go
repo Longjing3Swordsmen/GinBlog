@@ -2,7 +2,6 @@ package db
 
 import (
 	"database/sql"
-	"fmt"
 	_ "github.com/mattn/go-sqlite3"
 	"log"
 	"os"
@@ -49,11 +48,9 @@ func CreateDB() error {
 		}
 		err = createTable()
 		checkErr(err)
-		// todo: 创建文件，而是创建表
 	} else {
 		err = createTable()
 		checkErr(err)
-		// todo: 不创建文件，再创建表
 	}
 	return nil
 }
@@ -79,11 +76,11 @@ func createTable() error {
 	checkErr(err)
 
 	res, err := db.Exec(CreateCateTable.basesql)
-	log.Println(res)
+	log.Println("创建分类表：", res)
 	checkErr(err)
 
 	res, err = db.Exec(CreatePostTable.basesql)
-	log.Println(res)
+	log.Println("创建文章表", res)
 	checkErr(err)
 	return nil
 }
@@ -95,7 +92,7 @@ func (d db) InsertOneInfo(data ...interface{}) {
 
   stmt, err := db.Prepare(d.basesql)
   checkErr(err)
-  fmt.Println(data)
+  log.Println("正在初始化数据：", data)
   _, err = stmt.Exec(data...)
   checkErr(err)
 }
@@ -121,7 +118,6 @@ func checkErr(err error) {
 }
 
 func InitDB() {
-	checkErr(CreateDB())
 	insertCateDB := InsertCate
 	insertCateDB.InsertOneInfo("Python")
 	insertCateDB.InsertOneInfo("Linux")
@@ -129,4 +125,16 @@ func InitDB() {
 
 	insertPostDB := InsertPost
 	insertPostDB.InsertOneInfo("test_title", "test_summary", "test_content", 1)
+}
+
+func RecoverEnv() error {
+	if _, err := os.Stat(dbName); !os.IsNotExist(err) {
+		err = os.Remove(dbName)
+		if err != nil {
+			log.Fatal(err)
+			return err
+		}
+	}
+	log.Println("环境处理完成")
+	return nil
 }
